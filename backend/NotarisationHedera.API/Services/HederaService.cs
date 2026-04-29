@@ -1,0 +1,133 @@
+using System.Text;
+using System.Text.Json;
+using System.Text.RegularExpressions;
+using Hashgraph;
+
+namespace NotarisationHedera.API.Services;
+
+public class HederaService : IHederaService
+{
+    private readonly IConfiguration _config;
+    private readonly ILogger<HederaService> _logger;
+    private readonly IHttpClientFactory _httpClientFactory;
+    private readonly string _network;
+    private readonly string _operatorAccountId;
+    private readonly string _operatorPrivateKey;
+    private readonly string _topicId;
+
+    public HederaService(IConfiguration config, ILogger<HederaService> logger, IHttpClientFactory httpClientFactory)
+    {
+        _config = config;
+        _logger = logger;
+        _httpClientFactory = httpClientFactory;
+        _network = config["Hedera:Network"] ?? "testnet";
+        _operatorAccountId = config["Hedera:OperatorAccountId"] ?? string.Empty;
+        _operatorPrivateKey = config["Hedera:OperatorPrivateKey"] ?? string.Empty;
+        _topicId = config["Hedera:TopicId"] ?? string.Empty;
+    }
+
+    public async Task<(string TransactionId, DateTime ConsensusTimestamp)> RecordHashAsync(
+        string documentHash, string fileName, string hederaAccountId)
+    {
+        var client = BuildClient();
+
+        var payload = JsonSerializer.Serialize(new
+        {
+            hash = documentHash,
+            file = fileName,
+            notarisedBy = hederaAccountId,
+            timestamp = DateTime.UtcNow
+        });
+        var messageBytes = (ReadOnlyMemory<byte>)Encoding.UTF8.GetBytes(payload);
+
+        var record = await client.SubmitMessageWithRecordAsync(
+            ParseAddress(_topicId),
+            messageBytes);
+
+        var txId = record.Id.ToString();
+        var consensusTime = record.Concensus ?? DateTime.UtcNow;
+
+        _logger.LogInformation("Hash recorded on Hedera HCS. TxId={TxId} Consensus={Ts}", txId, consensusTime);
+        return (txId, consensusTime);
+    }
+
+    public async Task<(string TransactionId, DateTime ConsensusTimestamp)?> GetRecordAsync(string transactionId)
+    {
+        // Verify via Hedera mirror node REST API (avoids TxId parsing complexity)
+        try
+        {
+            var mirrorBase = _network == "mainnet"
+                ? "https://mainnet-public.mirrornode.hedera.com"
+                : "https://testnet.mirrornode.hedera.com";
+
+            // Convert "0.0.12345@1234567890.000000000" → "0.0.12345-1234567890-000000000"
+            var txIdForMirror = ToMirrorNodeTxId(transactionId);
+            var url = $"{mirrorBase}/api/v1/transactions/{txIdForMirror}";
+
+            var http = _httpClientFactory.CreateClient();
+            var response = await http.GetAsync(url);
+            if (!response.IsSuccessStatusCode) return null;
+
+            var json = await response.Content.ReadAsStringAsync();
+            using var doc = JsonDocument.Parse(json);
+            if (!doc.RootElement.TryGetProperty("transactions", out var txs)) return null;
+            if (txs.GetArrayLength() == 0) return null;
+
+            return (transactionId, DateTime.UtcNow);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Mirror node lookup failed for {TxId}", transactionId);
+            return null;
+        }
+    }
+
+    public async Task<string?> GetAccountPublicKeyAsync(string hederaAccountId)
+    {
+        try
+        {
+            var mirrorBase = _network == "mainnet"
+                ? "https://mainnet-public.mirrornode.hedera.com"
+                : "https://testnet.mirrornode.hedera.com";
+
+            var http = _httpClientFactory.CreateClient();
+            var response = await http.GetAsync($"{mirrorBase}/api/v1/accounts/{hederaAccountId}");
+            if (!response.IsSuccessStatusCode) return null;
+
+            var json = await response.Content.ReadAsStringAsync();
+            using var doc = JsonDocument.Parse(json);
+            if (doc.RootElement.TryGetProperty("key", out var key) &&
+                key.TryGetProperty("key", out var keyValue))
+                return keyValue.GetString();
+
+            return null;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Could not retrieve public key for {AccountId}", hederaAccountId);
+            return null;
+        }
+    }
+
+    // "0.0.12345@1234567890.000000000" → "0.0.12345-1234567890-000000000"
+    private static string ToMirrorNodeTxId(string txId)
+    {
+        var m = Regex.Match(txId, @"^(\d+\.\d+\.\d+)@(\d+)\.(\d+)$");
+        return m.Success ? $"{m.Groups[1].Value}-{m.Groups[2].Value}-{m.Groups[3].Value}" : txId;
+    }
+
+    private static Address ParseAddress(string id)
+    {
+        var p = id.Trim().Split('.');
+        return new Address(long.Parse(p[0]), long.Parse(p[1]), long.Parse(p[2]));
+    }
+
+    private Client BuildClient() => new Client(ctx =>
+    {
+        ctx.Gateway = _network == "mainnet"
+            ? new Gateway("35.237.200.180:50211", 0, 0, 3)
+            : new Gateway("0.testnet.hedera.com:50211", 0, 0, 3);
+        ctx.Payer = ParseAddress(_operatorAccountId);
+        ctx.Signatory = new Signatory(Hex.ToBytes(_operatorPrivateKey));
+    });
+}
