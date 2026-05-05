@@ -2,6 +2,7 @@ import { useState, useCallback } from 'react'
 import { useDropzone } from 'react-dropzone'
 import { notarisationApi, type NotarisationRecord } from '../../api/notarisation'
 import { hashFile } from '../../utils/crypto'
+import Req from '../ui/Req'
 
 export default function NotariseForm() {
   const [file, setFile] = useState<File | null>(null)
@@ -41,6 +42,9 @@ export default function NotariseForm() {
       <h1 style={{ fontSize: '1.4rem', fontWeight: 700, marginBottom: '1.5rem' }}>Notariser un document</h1>
 
       <div className="card" style={{ marginBottom: '1.5rem' }}>
+        <label style={{ display: 'block', fontWeight: 600, fontSize: '.875rem', marginBottom: '.6rem' }}>
+          Document à notariser <Req />
+        </label>
         <div
           {...getRootProps()}
           style={{

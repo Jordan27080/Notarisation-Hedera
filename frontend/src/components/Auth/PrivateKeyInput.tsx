@@ -1,10 +1,11 @@
 import { useRef } from 'react'
+import React from 'react'
 import { readKeyFile } from '../../utils/hedera'
 
 interface Props {
   value: string
   onChange: (value: string) => void
-  label?: string
+  label?: React.ReactNode
 }
 
 export default function PrivateKeyInput({ value, onChange, label = 'Clé privée ED25519' }: Props) {

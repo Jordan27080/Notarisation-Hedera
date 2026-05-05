@@ -3,6 +3,7 @@ import { useNavigate, Link } from 'react-router-dom'
 import { authApi } from '../../api/auth'
 import { derivePublicKey, isValidAccountId } from '../../utils/hedera'
 import PrivateKeyInput from './PrivateKeyInput'
+import Req from '../ui/Req'
 
 export default function RegisterForm() {
   const navigate = useNavigate()
@@ -50,20 +51,21 @@ export default function RegisterForm() {
 
         <form onSubmit={handleSubmit}>
           <div className="form-group">
-            <label>Nom d'utilisateur</label>
+            <label>Nom d'utilisateur <Req /></label>
             <input required value={form.username} onChange={e => update('username', e.target.value)} />
           </div>
           <div className="form-group">
-            <label>Email</label>
+            <label>Email <Req /></label>
             <input type="email" required value={form.email} onChange={e => update('email', e.target.value)} />
           </div>
           <div className="form-group">
-            <label>ID de compte Hedera (ex: 0.0.12345)</label>
+            <label>ID de compte Hedera (ex: 0.0.12345) <Req /></label>
             <input required value={form.hederaAccountId} onChange={e => update('hederaAccountId', e.target.value)} placeholder="0.0.12345" />
           </div>
           <PrivateKeyInput
             value={form.privateKey}
             onChange={v => update('privateKey', v)}
+            label={<>Clé privée ED25519 <Req /></>}
           />
 
           <button type="submit" className="btn-primary" style={{ width: '100%', padding: '.65rem' }} disabled={loading}>

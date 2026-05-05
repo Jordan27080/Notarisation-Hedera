@@ -11,6 +11,7 @@ import {
 } from '../utils/certificate'
 import TemplateFieldEditor, { type FieldPositions } from '../components/Certificate/TemplateFieldEditor'
 import { notarisationApi, type NotarisationRecord } from '../api/notarisation'
+import Req from '../components/ui/Req'
 
 pdfjsLib.GlobalWorkerOptions.workerSrc = '/pdf.worker.min.mjs'
 
@@ -65,24 +66,31 @@ function parseExcel(file: File): Promise<ExcelRow[]> {
         const normalize = (s: string) =>
           s.toLowerCase().replace(/[\s_-]/g, '').normalize('NFD').replace(/\p{M}/gu, '')
 
-        const FIRST = ['prenom', 'firstname', 'prénom']
-        const LAST  = ['nom', 'lastname', 'name']
+        const FIRST = ['prenom', 'firstname', 'prénom', 'givenname', 'given']
+        const LAST  = ['nom', 'lastname', 'name', 'surname', 'familyname']
 
         const findCol = (keys: string[], candidates: string[]) =>
           keys.find(k => candidates.some(c => normalize(k) === c))
 
-        const allKeys   = rows.length ? Object.keys(rows[0]) : []
-        const firstCol  = findCol(allKeys, FIRST)
-        const lastCol   = findCol(allKeys, LAST)
+        const allKeys  = rows.length ? Object.keys(rows[0]) : []
+        const firstCol = findCol(allKeys, FIRST)   // facultatif
+        const lastCol  = findCol(allKeys, LAST)
 
-        if (!firstCol || !lastCol) {
-          // Tentative position : col A = Prénom, col B = Nom
+        if (!lastCol) {
+          // Fallback positionnel : col A = Prénom (opt.), col B = Nom
+          // Si une seule colonne : traité comme Nom
           const fallback = rows
             .map(r => {
               const vals = Object.values(r)
-              return { firstName: String(vals[0] ?? '').trim(), lastName: String(vals[1] ?? '').trim() }
+              if (vals.length === 1) {
+                return { firstName: '', lastName: String(vals[0] ?? '').trim() }
+              }
+              return {
+                firstName: String(vals[0] ?? '').trim(),
+                lastName:  String(vals[1] ?? '').trim(),
+              }
             })
-            .filter(r => r.firstName || r.lastName)
+            .filter(r => r.lastName)
           resolve(fallback)
           return
         }
@@ -90,10 +98,10 @@ function parseExcel(file: File): Promise<ExcelRow[]> {
         resolve(
           rows
             .map(r => ({
-              firstName: String(r[firstCol] ?? '').trim(),
-              lastName:  String(r[lastCol]  ?? '').trim(),
+              firstName: firstCol ? String(r[firstCol] ?? '').trim() : '',
+              lastName:  String(r[lastCol] ?? '').trim(),
             }))
-            .filter(r => r.firstName || r.lastName),
+            .filter(r => r.lastName),
         )
       } catch (err) {
         reject(err)
@@ -155,8 +163,9 @@ export default function CertificatePage() {
 
   // ── Mode individuel ──────────────────────────────────────────────────────
 
+  // Prénom est facultatif
   const canGenerate =
-    firstName.trim() && lastName.trim() &&
+    lastName.trim() &&
     trainingName.trim() && startDate && endDate && positions
 
   async function handleGenerate() {
@@ -321,7 +330,7 @@ export default function CertificatePage() {
                     onChange={e => { setFirstName(e.target.value); resetPdf() }}
                   />
                 </FormField>
-                <FormField label="Nom">
+                <FormField label={<>Nom <Req /></>}>
                   <input
                     className="form-input"
                     placeholder="ex : DUPONT"
@@ -336,10 +345,11 @@ export default function CertificatePage() {
           {/* ── Import Excel (mode batch) ── */}
           {mode === 'batch' && (
             <div className="card">
-              <SectionTitle icon="📋" label="Liste des bénéficiaires" />
+              <SectionTitle icon="📋" label={<>Liste des bénéficiaires <Req /></>} />
               <p style={{ fontSize: '.78rem', color: 'var(--text-muted)', marginBottom: '.75rem' }}>
-                Fichier .xlsx avec colonnes <strong>Prénom</strong> et <strong>Nom</strong>
-                (ou colonnes A et B si pas d'en-tête).
+                Fichier .xlsx avec colonne <strong>Nom</strong> obligatoire,
+                et colonne <strong>Prénom</strong> facultative
+                (ou colonnes A et B si pas d'en-tête, ou colonne A seule pour le Nom uniquement).
               </p>
 
               {/* Zone de dépôt */}
@@ -408,7 +418,7 @@ export default function CertificatePage() {
           {/* ── Formation ── */}
           <div className="card">
             <SectionTitle icon="📚" label="Formation" />
-            <FormField label="Nom de la formation">
+            <FormField label={<>Nom de la formation <Req /></>}>
               <input
                 className="form-input"
                 placeholder="ex : Développement Web avec React"
@@ -417,7 +427,7 @@ export default function CertificatePage() {
               />
             </FormField>
             <FormRow style={{ marginTop: '.75rem' }}>
-              <FormField label="Date de début">
+              <FormField label={<>Date de début <Req /></>}>
                 <input
                   className="form-input"
                   type="date"
@@ -425,7 +435,7 @@ export default function CertificatePage() {
                   onChange={e => { setStartDate(fromInputDate(e.target.value)); resetPdf() }}
                 />
               </FormField>
-              <FormField label="Date de fin">
+              <FormField label={<>Date de fin <Req /></>}>
                 <input
                   className="form-input"
                   type="date"
@@ -593,7 +603,7 @@ export default function CertificatePage() {
 
 // ─── Micro-composants UI ────────────────────────────────────────────────────
 
-function SectionTitle({ icon, label }: { icon: string; label: string }) {
+function SectionTitle({ icon, label }: { icon: string; label: React.ReactNode }) {
   return (
     <div style={{ display: 'flex', alignItems: 'center', gap: '.45rem', marginBottom: '1rem' }}>
       <span style={{ fontSize: '1.1rem' }}>{icon}</span>
@@ -610,7 +620,7 @@ function FormRow({ children, style }: { children: React.ReactNode; style?: React
   )
 }
 
-function FormField({ label, children }: { label: string; children: React.ReactNode }) {
+function FormField({ label, children }: { label: React.ReactNode; children: React.ReactNode }) {
   return (
     <div>
       <label className="form-label">{label}</label>

@@ -4,6 +4,7 @@ import { authApi } from '../../api/auth'
 import { signMessage, isValidAccountId } from '../../utils/hedera'
 import { useAuth } from '../../contexts/AuthContext'
 import PrivateKeyInput from './PrivateKeyInput'
+import Req from '../ui/Req'
 
 export default function LoginForm() {
   const { login } = useAuth()
@@ -57,13 +58,13 @@ export default function LoginForm() {
 
         <form onSubmit={handleSubmit}>
           <div className="form-group">
-            <label>ID de compte Hedera</label>
+            <label>ID de compte Hedera <Req /></label>
             <input required value={accountId} onChange={e => setAccountId(e.target.value)} placeholder="0.0.12345" />
           </div>
           <PrivateKeyInput
             value={privateKey}
             onChange={setPrivateKey}
-            label="Clé privée ED25519 (signe le challenge localement)"
+            label={<>Clé privée ED25519 (signe le challenge localement) <Req /></>}
           />
 
           <button type="submit" className="btn-primary" style={{ width: '100%', padding: '.65rem' }} disabled={loading}>
