@@ -1,29 +1,47 @@
-import { useState } from 'react'
-import { generateCertificate, hashPdfBytes, downloadPdf, type CertificateData } from '../utils/certificate'
+import { useEffect, useState } from 'react'
+import * as pdfjsLib from 'pdfjs-dist'
+import {
+  generateCertificateAtPositions,
+  hashPdfBytes,
+  downloadPdf,
+  defaultPositions,
+  type CertificateData,
+} from '../utils/certificate'
+import TemplateFieldEditor, { type FieldPositions } from '../components/Certificate/TemplateFieldEditor'
 import { notarisationApi, type NotarisationRecord } from '../api/notarisation'
 
+pdfjsLib.GlobalWorkerOptions.workerSrc = '/pdf.worker.min.mjs'
+
+const TEMPLATE_URL = '/template-cert.pdf'
+
 const EMPTY: CertificateData = {
-  firstName: '',
-  lastName: '',
+  firstName:    '',
+  lastName:     '',
   trainingName: '',
-  startDate: '',
-  endDate: '',
+  startDate:    '',
+  endDate:      '',
 }
 
-function toInputDate(fr: string): string {
-  // DD/MM/YYYY → YYYY-MM-DD  (pour <input type="date">)
+function toInputDate(fr: string) {
   const [d, m, y] = fr.split('/')
   return y && m && d ? `${y}-${m}-${d}` : ''
 }
-
-function fromInputDate(iso: string): string {
-  // YYYY-MM-DD → DD/MM/YYYY
+function fromInputDate(iso: string) {
   const [y, m, d] = iso.split('-')
   return y && m && d ? `${d}/${m}/${y}` : ''
 }
 
+// Charge la première page du template pour connaître ses dimensions
+async function getPageSize(url: string) {
+  const pdf  = await pdfjsLib.getDocument(url).promise
+  const page = await pdf.getPage(1)
+  const vp   = page.getViewport({ scale: 1 })
+  return { w: vp.width, h: vp.height }
+}
+
 export default function CertificatePage() {
-  const [form, setForm]         = useState(EMPTY)
+  const [form, setForm]         = useState<CertificateData>(EMPTY)
+  const [positions, setPositions] = useState<FieldPositions | null>(null)
   const [pdfBytes, setPdfBytes] = useState<Uint8Array | null>(null)
   const [previewUrl, setPreviewUrl] = useState<string | null>(null)
   const [hash, setHash]         = useState<string | null>(null)
@@ -33,10 +51,18 @@ export default function CertificatePage() {
   const [record, setRecord]     = useState<NotarisationRecord | null>(null)
   const [error, setError]       = useState('')
 
+  // Charge les dimensions de la page au montage pour initialiser les positions
+  useEffect(() => {
+    getPageSize(TEMPLATE_URL).then(({ w, h }) => {
+      setPositions(defaultPositions(w, h))
+    })
+  }, [])
+
   function set(field: keyof CertificateData, value: string) {
     setForm(f => ({ ...f, [field]: value }))
-    // Réinitialise le PDF si les données changent
+    // Invalide le PDF généré si les données changent
     setPdfBytes(null)
+    if (previewUrl) URL.revokeObjectURL(previewUrl)
     setPreviewUrl(null)
     setHash(null)
     setRecord(null)
@@ -45,21 +71,22 @@ export default function CertificatePage() {
 
   const canGenerate =
     form.firstName.trim() &&
-    form.lastName.trim() &&
+    form.lastName.trim()  &&
     form.trainingName.trim() &&
     form.startDate &&
-    form.endDate
+    form.endDate  &&
+    positions !== null
 
   async function handleGenerate() {
+    if (!positions) return
     setGenerating(true)
     setError('')
     try {
-      const bytes = await generateCertificate(form)
-      const docHash = await hashPdfBytes(bytes)
-      const name = `Attestation_${form.lastName.trim()}_${form.firstName.trim()}.pdf`
+      const bytes    = await generateCertificateAtPositions(form, TEMPLATE_URL, positions)
+      const docHash  = await hashPdfBytes(bytes)
+      const name     = `Attestation_${form.lastName.trim()}_${form.firstName.trim()}.pdf`
         .replace(/\s+/g, '_')
 
-      // Libère l'URL précédente avant d'en créer une nouvelle
       if (previewUrl) URL.revokeObjectURL(previewUrl)
       const blob = new Blob([bytes.buffer as ArrayBuffer], { type: 'application/pdf' })
       const url  = URL.createObjectURL(blob)
@@ -69,7 +96,7 @@ export default function CertificatePage() {
       setHash(docHash)
       setFileName(name)
     } catch (e) {
-      setError("Erreur lors de la génération du PDF : " + (e instanceof Error ? e.message : String(e)))
+      setError('Erreur lors de la génération : ' + (e instanceof Error ? e.message : String(e)))
     } finally {
       setGenerating(false)
     }
@@ -90,20 +117,33 @@ export default function CertificatePage() {
     }
   }
 
+  // Textes prévisualisés dans les chips
+  const previews = {
+    name:      form.firstName || form.lastName
+      ? `${form.firstName.trim().toUpperCase()} ${form.lastName.trim().toUpperCase()}`.trim()
+      : 'NOM & PRÉNOM',
+    training:  form.trainingName.trim() || 'NOM DE LA FORMATION',
+    startDate: form.startDate || 'DATE DÉBUT',
+    endDate:   form.endDate   || 'DATE FIN',
+  }
+
   return (
-    <div style={{ maxWidth: 1100, margin: '2rem auto', padding: '0 1rem' }}>
+    <div style={{ maxWidth: 1200, margin: '2rem auto', padding: '0 1rem' }}>
       <h1 style={{ fontSize: '1.4rem', fontWeight: 700, marginBottom: '.25rem' }}>
         🎓 Générer une attestation de formation
       </h1>
-      <p style={{ color: 'var(--text-muted)', fontSize: '.875rem', marginBottom: '2rem' }}>
-        Remplissez les informations — l'attestation est générée dans votre navigateur, puis notarisée sur Hedera.
+      <p style={{ color: 'var(--text-muted)', fontSize: '.875rem', marginBottom: '1.5rem' }}>
+        Remplissez le formulaire, positionnez les champs sur le template en les <strong>glissant</strong>,
+        puis générez l'attestation.
       </p>
 
-      <div style={{ display: 'grid', gridTemplateColumns: '340px 1fr', gap: '1.5rem', alignItems: 'start' }}>
+      <div style={{ display: 'grid', gridTemplateColumns: '300px 1fr', gap: '1.5rem', alignItems: 'start' }}>
 
         {/* ── Formulaire ── */}
         <div className="card">
-          <h2 style={{ fontSize: '1rem', fontWeight: 700, marginBottom: '1.25rem' }}>Informations du bénéficiaire</h2>
+          <h2 style={{ fontSize: '1rem', fontWeight: 700, marginBottom: '1.25rem' }}>
+            Informations du bénéficiaire
+          </h2>
 
           <label className="form-label">Prénom</label>
           <input
@@ -154,6 +194,7 @@ export default function CertificatePage() {
             <div className="alert alert-error" style={{ marginTop: '1rem' }}>{error}</div>
           )}
 
+          {/* ── Bouton Générer ── */}
           <button
             className="btn-primary"
             style={{ width: '100%', marginTop: '1.5rem', padding: '.65rem' }}
@@ -179,8 +220,8 @@ export default function CertificatePage() {
                   <span className="badge badge-success" style={{ marginBottom: '.75rem', display: 'inline-block' }}>
                     ✓ Notarisé sur Hedera
                   </span>
-                  <Field label="Hash SHA-256" value={record.documentHash} mono />
-                  <Field label="Transaction Hedera" value={record.hederaTransactionId} mono />
+                  <Field label="Hash SHA-256"            value={record.documentHash} mono />
+                  <Field label="Transaction Hedera"      value={record.hederaTransactionId} mono />
                   <Field
                     label="Horodatage blockchain"
                     value={record.consensusTimestamp
@@ -202,33 +243,70 @@ export default function CertificatePage() {
           )}
         </div>
 
-        {/* ── Prévisualisation PDF ── */}
-        <div className="card" style={{ padding: 0, overflow: 'hidden', minHeight: 480 }}>
-          {previewUrl ? (
-            <iframe
-              src={previewUrl}
-              title="Prévisualisation de l'attestation"
-              style={{ width: '100%', height: 580, border: 'none', display: 'block' }}
+        {/* ── Template interactif ── */}
+        <div>
+          <div style={{
+            display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+            marginBottom: '.6rem',
+          }}>
+            <p style={{ fontSize: '.8rem', color: 'var(--text-muted)' }}>
+              ✋ Glissez chaque champ coloré à la bonne position sur le template
+            </p>
+            {positions && (
+              <button
+                className="btn-secondary"
+                style={{ fontSize: '.75rem', padding: '.25rem .7rem' }}
+                onClick={async () => {
+                  const { w, h } = await getPageSize(TEMPLATE_URL)
+                  setPositions(defaultPositions(w, h))
+                  setPdfBytes(null)
+                  setPreviewUrl(null)
+                  setRecord(null)
+                }}
+              >
+                ↺ Réinitialiser positions
+              </button>
+            )}
+          </div>
+
+          {positions ? (
+            <TemplateFieldEditor
+              templateUrl={TEMPLATE_URL}
+              previews={previews}
+              positions={positions}
+              onChange={pos => {
+                setPositions(pos)
+                // Invalide le PDF si on re-positionne un champ
+                setPdfBytes(null)
+                if (previewUrl) URL.revokeObjectURL(previewUrl)
+                setPreviewUrl(null)
+                setRecord(null)
+              }}
             />
           ) : (
             <div style={{
-              height: 480,
-              display: 'flex',
-              flexDirection: 'column',
-              alignItems: 'center',
-              justifyContent: 'center',
-              color: 'var(--text-muted)',
-              gap: '.75rem',
-              padding: '2rem',
-              textAlign: 'center',
+              height: 400, display: 'flex', alignItems: 'center', justifyContent: 'center',
+              border: '1px solid var(--border)', borderRadius: 6,
             }}>
-              <span style={{ fontSize: '3rem' }}>📄</span>
-              <p style={{ fontSize: '.875rem' }}>
-                Remplissez le formulaire et cliquez sur <strong>Générer l'attestation</strong> pour voir l'aperçu ici.
+              <span className="spinner" style={{ width: 28, height: 28 }} />
+            </div>
+          )}
+
+          {/* Aperçu PDF généré */}
+          {previewUrl && (
+            <div style={{ marginTop: '1.5rem' }}>
+              <p style={{ fontSize: '.8rem', fontWeight: 600, marginBottom: '.5rem' }}>
+                Aperçu de l'attestation générée
               </p>
+              <iframe
+                src={previewUrl}
+                title="Aperçu de l'attestation"
+                style={{ width: '100%', height: 520, border: '1px solid var(--border)', borderRadius: 6 }}
+              />
             </div>
           )}
         </div>
+
       </div>
     </div>
   )
@@ -238,7 +316,9 @@ function Field({ label, value, mono }: { label: string; value: string; mono?: bo
   return (
     <div style={{ marginBottom: '.6rem' }}>
       <p style={{ fontSize: '.7rem', color: 'var(--text-muted)', marginBottom: '.1rem' }}>{label}</p>
-      <p style={{ fontFamily: mono ? 'monospace' : undefined, wordBreak: 'break-all', fontSize: '.8rem' }}>{value}</p>
+      <p style={{ fontFamily: mono ? 'monospace' : undefined, wordBreak: 'break-all', fontSize: '.8rem' }}>
+        {value}
+      </p>
     </div>
   )
 }

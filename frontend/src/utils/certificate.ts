@@ -1,4 +1,5 @@
 import { PDFDocument, rgb, StandardFonts } from 'pdf-lib'
+import type { FieldPositions } from '../components/Certificate/TemplateFieldEditor'
 
 export interface CertificateData {
   firstName:    string
@@ -8,9 +9,74 @@ export interface CertificateData {
   endDate:      string
 }
 
+// ─── Positions par défaut pour le template drag-and-drop ─────────────────────
+// (points PDF, y depuis le BAS)
+export function defaultPositions(pageW: number, pageH: number): FieldPositions {
+  return {
+    name:      { x: pageW / 2,       y: pageH * 0.56 },
+    training:  { x: pageW / 2,       y: pageH * 0.38 },
+    startDate: { x: pageW * 0.35,    y: pageH * 0.22 },
+    endDate:   { x: pageW * 0.65,    y: pageH * 0.22 },
+  }
+}
+
+/** Génère le certificat avec positions librement choisies par l'utilisateur */
+export async function generateCertificateAtPositions(
+  data:         CertificateData,
+  templateUrl:  string,
+  positions:    FieldPositions,
+): Promise<Uint8Array> {
+  const templateBytes = await fetch(templateUrl).then(r => r.arrayBuffer())
+  const pdfDoc   = await PDFDocument.load(templateBytes)
+  const page     = pdfDoc.getPages()[0]
+  const boldFont = await pdfDoc.embedFont(StandardFonts.HelveticaBold)
+  const white    = rgb(1, 1, 1)
+  const black    = rgb(0.05, 0.05, 0.05)
+
+  const { width: W } = page.getSize()
+
+  const fields: [keyof FieldPositions, string][] = [
+    ['name',      `${data.firstName.trim().toUpperCase()} ${data.lastName.trim().toUpperCase()}`],
+    ['training',  data.trainingName.trim()],
+    ['startDate', data.startDate],
+    ['endDate',   data.endDate],
+  ]
+
+  for (const [key, text] of fields) {
+    const pos  = positions[key]
+    const size = key === 'name' || key === 'training' ? 14 : 11
+
+    // Largeur max adaptative : centrée sur x, limitée par les bords
+    const maxW = key === 'name' || key === 'training'
+      ? Math.min(pos.x, W - pos.x) * 2 - 8   // centré sur pos.x
+      : 120
+
+    let finalSize = size
+    while (finalSize > 6 && boldFont.widthOfTextAtSize(text, finalSize) > maxW) finalSize -= 0.5
+    const textW = boldFont.widthOfTextAtSize(text, finalSize)
+
+    // Ancrage : le chip pointe sur pos.x (centré horizontalement)
+    const tx = pos.x - textW / 2
+    const ty = pos.y
+
+    // Rectangle blanc couvrant la zone du texte
+    const pad = 4
+    page.drawRectangle({
+      x:      tx - pad,
+      y:      ty - 3,
+      width:  textW + pad * 2,
+      height: finalSize + 6,
+      color:  white,
+    })
+
+    page.drawText(text, { x: tx, y: ty, size: finalSize, font: boldFont, color: black })
+  }
+
+  return pdfDoc.save()
+}
+
 // ─── Dimensions réelles mesurées avec PyMuPDF ────────────────────────────────
 const PAGE_W = 631.5   // pt  (Y = depuis le BAS, convention pdf-lib)
-const PAGE_H = 445.5
 
 // ─── Coordonnées calibrées par analyse pixel (8× zoom, seuil R<80 G<80 B<80)
 //
