@@ -3,6 +3,7 @@ import { useNavigate, Link, useLocation } from 'react-router-dom'
 import { authApi } from '../../api/auth'
 import { signMessage, isValidAccountId } from '../../utils/hedera'
 import { useAuth } from '../../contexts/AuthContext'
+import PrivateKeyInput from './PrivateKeyInput'
 
 export default function LoginForm() {
   const { login } = useAuth()
@@ -29,15 +30,16 @@ export default function LoginForm() {
       const { nonce } = await authApi.challenge(accountId)
 
       // Step 2: sign the nonce client-side (private key never leaves browser)
-      const signatureHex = signMessage(nonce, privateKey)
+      const signatureHex = await signMessage(nonce, privateKey)
 
       // Step 3: send the signature for server-side ED25519 verification
       const user = await authApi.login({ hederaAccountId: accountId, nonce, signatureHex })
       login(user)
       navigate('/')
     } catch (err: unknown) {
-      const msg = (err as { response?: { data?: { message?: string } } })?.response?.data?.message
-      setError(msg ?? 'Authentification échouée. Vérifiez vos identifiants.')
+      const axiosMsg = (err as { response?: { data?: { message?: string } } })?.response?.data?.message
+      const jsMsg = (err instanceof Error) ? err.message : null
+      setError(axiosMsg ?? jsMsg ?? 'Authentification échouée. Vérifiez vos identifiants.')
     } finally {
       setLoading(false)
     }
@@ -58,19 +60,11 @@ export default function LoginForm() {
             <label>ID de compte Hedera</label>
             <input required value={accountId} onChange={e => setAccountId(e.target.value)} placeholder="0.0.12345" />
           </div>
-          <div className="form-group">
-            <label>Clé privée ED25519</label>
-            <input
-              type="password"
-              required
-              value={privateKey}
-              onChange={e => setPrivateKey(e.target.value)}
-              placeholder="302e020100300506032b657004220420..."
-            />
-            <span style={{ fontSize: '.75rem', color: 'var(--text-muted)' }}>
-              Utilisée localement pour signer le challenge — non transmise.
-            </span>
-          </div>
+          <PrivateKeyInput
+            value={privateKey}
+            onChange={setPrivateKey}
+            label="Clé privée ED25519 (signe le challenge localement)"
+          />
 
           <button type="submit" className="btn-primary" style={{ width: '100%', padding: '.65rem' }} disabled={loading}>
             {loading ? <span className="spinner" /> : 'Se connecter'}

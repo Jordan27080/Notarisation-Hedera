@@ -15,7 +15,7 @@ public class NotarisationRecord
     public string FileName { get; set; } = string.Empty;
 
     // Hedera transaction ID returned after recording the hash on HCS
-    [Required, MaxLength(100)]
+    [Required, MaxLength(255)]
     public string HederaTransactionId { get; set; } = string.Empty;
 
     // Hedera consensus timestamp (immutable proof of existence)

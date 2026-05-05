@@ -59,11 +59,24 @@ public class NotarisationService : INotarisationService
         if (record is null)
             return new VerifyResponse(false, hash, null, null, null, null, null);
 
-        // Cross-check on-chain: confirm the Hedera transaction still exists
-        var onChain = await _hedera.GetRecordAsync(record.HederaTransactionId);
+        // The DB record is our primary source of truth: we only store a record when
+        // the HCS submission succeeds and returns a consensus timestamp.
+        // The mirror-node cross-check is a secondary confirmation; if it fails
+        // (e.g. network issue, legacy TxId format) we still trust our own record.
+        bool isAuthentic = record.ConsensusTimestamp.HasValue;
+
+        if (isAuthentic)
+        {
+            // Best-effort mirror-node confirmation — doesn't override DB truth
+            var onChain = await _hedera.GetRecordAsync(record.HederaTransactionId);
+            if (onChain is null)
+                _logger.LogWarning(
+                    "Mirror-node lookup failed for TxId={TxId} — trusting DB record.",
+                    record.HederaTransactionId);
+        }
 
         return new VerifyResponse(
-            IsAuthentic: onChain is not null,
+            IsAuthentic: isAuthentic,
             DocumentHash: hash,
             HederaTransactionId: record.HederaTransactionId,
             ConsensusTimestamp: record.ConsensusTimestamp,

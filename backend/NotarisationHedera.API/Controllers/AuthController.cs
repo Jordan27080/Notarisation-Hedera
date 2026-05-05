@@ -10,12 +10,20 @@ public class AuthController(IAuthService authService) : ControllerBase
 {
     [HttpPost("register")]
     [ProducesResponseType(StatusCodes.Status201Created)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
     [ProducesResponseType(StatusCodes.Status409Conflict)]
     public async Task<IActionResult> Register([FromBody] RegisterRequest request)
     {
-        var user = await authService.RegisterAsync(request);
+        var (user, error) = await authService.RegisterAsync(request);
+
         if (user is null)
-            return Conflict(new { message = "A user with this Hedera account already exists." });
+        {
+            // Conflict = compte déjà existant, BadRequest = clé invalide
+            bool isConflict = error?.Contains("existe déjà") ?? false;
+            return isConflict
+                ? Conflict(new { message = error })
+                : BadRequest(new { message = error });
+        }
 
         return Created($"/api/auth/{user.Id}", new { user.Id, user.Username, user.HederaAccountId });
     }

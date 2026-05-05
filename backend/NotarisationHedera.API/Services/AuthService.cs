@@ -16,31 +16,50 @@ public class AuthService : IAuthService
     private readonly IMemoryCache _cache;
     private readonly ICryptoService _crypto;
     private readonly IConfiguration _config;
+    private readonly IHederaService _hedera;
 
-    public AuthService(AppDbContext db, IMemoryCache cache, ICryptoService crypto, IConfiguration config)
+    public AuthService(AppDbContext db, IMemoryCache cache, ICryptoService crypto,
+        IConfiguration config, IHederaService hedera)
     {
         _db = db;
         _cache = cache;
         _crypto = crypto;
         _config = config;
+        _hedera = hedera;
     }
 
-    public async Task<User?> RegisterAsync(RegisterRequest request)
+    public async Task<(User? User, string? Error)> RegisterAsync(RegisterRequest request)
     {
+        // 1. Compte déjà existant
         if (await _db.Users.AnyAsync(u => u.HederaAccountId == request.HederaAccountId))
-            return null;
+            return (null, "Un utilisateur avec ce compte Hedera existe déjà.");
 
+        // 2. Vérification de la clé publique contre le mirror node Hedera
+        //    Le mirror node retourne la vraie clé publique enregistrée on-chain.
+        var onChainKey = await _hedera.GetAccountPublicKeyAsync(request.HederaAccountId);
+
+        if (onChainKey is null)
+            return (null, "Impossible de vérifier le compte Hedera. Vérifiez l'ID du compte.");
+
+        // Normaliser les deux clés (lowercase, sans espaces) avant comparaison
+        var providedKey = request.PublicKeyHex.Trim().ToLowerInvariant();
+        var chainKey    = onChainKey.Trim().ToLowerInvariant();
+
+        if (providedKey != chainKey)
+            return (null, "La clé publique ne correspond pas au compte Hedera. Vérifiez votre clé privée.");
+
+        // 3. Création de l'utilisateur
         var user = new User
         {
             Username = request.Username,
             Email = request.Email,
             HederaAccountId = request.HederaAccountId,
-            PublicKeyHex = request.PublicKeyHex.ToLowerInvariant()
+            PublicKeyHex = providedKey
         };
 
         _db.Users.Add(user);
         await _db.SaveChangesAsync();
-        return user;
+        return (user, null);
     }
 
     public Task<ChallengeResponse> GenerateChallengeAsync(string hederaAccountId)
