@@ -21,23 +21,27 @@ const PAGE_H = 445.5
 //
 const SLOTS = {
   name: {
-    cover:    { x: 100, y: 244, w: 432, h: 17 },
+    // NOMS ET PRENOMS  y_baseline≈248.5  h≈9.8  → couvre y=243..264
+    cover:    { x: 80, y: 243, w: 472, h: 21 },
     baseline: 249,
     maxSize:  14,
   },
   training: {
-    cover:    { x: 100, y: 154, w: 432, h: 17 },
+    // NOM DE LA FORMATION  y_baseline≈158.4  h≈9.8  → couvre y=153..170
+    cover:    { x: 80, y: 153, w: 472, h: 21 },
     baseline: 159,
     maxSize:  14,
   },
   startDate: {
-    cover:    { x: 238, y: 108, w: 70, h: 17 },
+    // DATE DEBUT  y_baseline≈111.6  h≈10.9  → couvre y=106..124
+    cover:    { x: 234, y: 106, w: 76, h: 20 },
     baseline: 112,
     anchorX:  241,
     maxSize:  11,
   },
   endDate: {
-    cover:    { x: 337, y: 108, w: 50, h: 17 },
+    // DATE FIN  y_baseline≈111.6  h≈10.9  → couvre y=106..124
+    cover:    { x: 333, y: 106, w: 56, h: 20 },
     baseline: 112,
     anchorX:  340,
     maxSize:  11,
@@ -58,24 +62,19 @@ function fitSize(
 export async function generateCertificate(data: CertificateData): Promise<Uint8Array> {
   const templateBytes = await fetch('/template-certification.pdf').then(r => r.arrayBuffer())
 
-  // ── Stratégie : nouveau document + template en XObject ───────────────────
-  // pdf-lib ajoute le nouveau contenu AVANT l'image de fond lors d'un load().
-  // En créant un nouveau doc et en dessinant d'abord le template via embedPdf,
-  // on garantit l'ordre : template (fond) → rect blancs → textes (avant-plan).
-  const pdfDoc = await PDFDocument.create()
-  const [embeddedTemplate] = await pdfDoc.embedPdf(templateBytes, [0])
-
-  const page      = pdfDoc.addPage([PAGE_W, PAGE_H])
-  const boldFont  = await pdfDoc.embedFont(StandardFonts.HelveticaBold)
-  const white     = rgb(1, 1, 1)
-  const black     = rgb(0.05, 0.05, 0.05)
-
-  // 1. ── Template en arrière-plan ──────────────────────────────────────────
-  page.drawPage(embeddedTemplate, { x: 0, y: 0 })
+  // ── Stratégie : PDFDocument.load() ──────────────────────────────────────
+  // Avec load(), le contenu ajouté (drawRectangle / drawText) est APPENDÉ
+  // au flux de contenu de la page existante → il s'affiche PAR-DESSUS
+  // l'image de fond baked dans le template.
+  const pdfDoc   = await PDFDocument.load(templateBytes)
+  const page     = pdfDoc.getPages()[0]
+  const boldFont = await pdfDoc.embedFont(StandardFonts.HelveticaBold)
+  const white    = rgb(1, 1, 1)
+  const black    = rgb(0.05, 0.05, 0.05)
 
   const fullName = `${data.firstName.trim().toUpperCase()} ${data.lastName.trim().toUpperCase()}`
 
-  // 2. ── Champ centré : Nom / Formation ────────────────────────────────────
+  // ── Champ centré : Nom / Formation ───────────────────────────────────────
   function drawCentered(
     slot: typeof SLOTS.name | typeof SLOTS.training,
     text: string,
@@ -89,7 +88,7 @@ export async function generateCertificate(data: CertificateData): Promise<Uint8A
     page.drawText(text, { x: cx, y: baseline, size, font: boldFont, color: black })
   }
 
-  // 3. ── Champ à position fixe : dates ─────────────────────────────────────
+  // ── Champ à position fixe : dates ────────────────────────────────────────
   function drawAt(
     slot: typeof SLOTS.startDate | typeof SLOTS.endDate,
     text: string,
@@ -100,7 +99,7 @@ export async function generateCertificate(data: CertificateData): Promise<Uint8A
     page.drawText(text, { x: anchorX, y: baseline, size, font: boldFont, color: black })
   }
 
-  // 4. ── Remplissage ────────────────────────────────────────────────────────
+  // ── Remplissage ──────────────────────────────────────────────────────────
   drawCentered(SLOTS.name,     fullName)
   drawCentered(SLOTS.training, data.trainingName.trim())
   drawAt(SLOTS.startDate,      data.startDate)
