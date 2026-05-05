@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { notarisationApi, type NotarisationRecord } from '../api/notarisation'
+import React from 'react'
 
 // ─── Groupement par dossier ───────────────────────────────────────────────────
 
@@ -128,7 +129,23 @@ function FolderCard({ name, records }: { name: string; records: NotarisationReco
 // ─── Ligne fichier ────────────────────────────────────────────────────────────
 
 function FileRow({ rec, last }: { rec: NotarisationRecord; last: boolean }) {
-  const [expanded, setExpanded] = useState(false)
+  const [expanded,    setExpanded]    = useState(false)
+  const [downloading, setDownloading] = useState(false)
+  const [dlError,     setDlError]     = useState('')
+
+  async function handleDownload(e: React.MouseEvent) {
+    e.stopPropagation()   // ne pas toggler l'expand
+    if (downloading) return
+    setDownloading(true)
+    setDlError('')
+    try {
+      await notarisationApi.downloadPdf(rec.id, rec.fileName)
+    } catch {
+      setDlError('Téléchargement impossible.')
+    } finally {
+      setDownloading(false)
+    }
+  }
 
   return (
     <div style={{ borderBottom: last ? 'none' : '1px solid var(--border)' }}>
@@ -144,6 +161,7 @@ function FileRow({ rec, last }: { rec: NotarisationRecord; last: boolean }) {
         }}
       >
         <span style={{ fontSize: '1.1rem' }}>📋</span>
+
         <div style={{ flex: 1, minWidth: 0 }}>
           <p style={{ fontWeight: 600, fontSize: '.875rem', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
             {rec.fileName}
@@ -152,11 +170,38 @@ function FileRow({ rec, last }: { rec: NotarisationRecord; last: boolean }) {
             {new Date(rec.notarisedAt).toLocaleString('fr')}
           </p>
         </div>
-        <span className="badge badge-success" style={{ fontSize: '.7rem', whiteSpace: 'nowrap' }}>
-          ✓ Notarisé
-        </span>
+
+        <span className="badge badge-success" style={{ fontSize: '.7rem', whiteSpace: 'nowrap' }}>✓ Notarisé</span>
+
+        {/* Bouton téléchargement */}
+        {rec.hasPdf && (
+          <button
+            onClick={handleDownload}
+            disabled={downloading}
+            title="Re-télécharger le PDF"
+            style={{
+              background: 'var(--primary)', color: '#fff',
+              border: 'none', borderRadius: 6,
+              padding: '.3rem .65rem', fontSize: '.75rem',
+              cursor: downloading ? 'default' : 'pointer',
+              opacity: downloading ? .7 : 1,
+              display: 'flex', alignItems: 'center', gap: '.35rem',
+              whiteSpace: 'nowrap', flexShrink: 0,
+            }}
+          >
+            {downloading ? <span className="spinner" style={{ width: 12, height: 12 }} /> : '⬇️'}
+            {downloading ? 'Chargement…' : 'PDF'}
+          </button>
+        )}
+
         <span style={{ color: 'var(--text-muted)', fontSize: '.75rem' }}>{expanded ? '▾' : '▸'}</span>
       </div>
+
+      {dlError && (
+        <p style={{ fontSize: '.75rem', color: 'var(--error)', padding: '0 1rem .5rem 2.85rem' }}>
+          ❌ {dlError}
+        </p>
+      )}
 
       {/* Détails dépliables */}
       {expanded && (
@@ -166,8 +211,8 @@ function FileRow({ rec, last }: { rec: NotarisationRecord; last: boolean }) {
           borderTop: '1px solid var(--border)',
           display: 'flex', flexDirection: 'column', gap: '.4rem',
         }}>
-          <DetailField label="Hash SHA-256"         value={rec.documentHash} mono />
-          <DetailField label="Transaction Hedera"   value={rec.hederaTransactionId} mono />
+          <DetailField label="Hash SHA-256"       value={rec.documentHash} mono />
+          <DetailField label="Transaction Hedera" value={rec.hederaTransactionId} mono />
           <DetailField
             label="Horodatage blockchain"
             value={rec.consensusTimestamp

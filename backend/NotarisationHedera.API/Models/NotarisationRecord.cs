@@ -18,6 +18,9 @@ public class NotarisationRecord
     [MaxLength(255)]
     public string? Folder { get; set; }
 
+    // PDF content stored for re-download (never exposed in list responses)
+    public byte[]? PdfContent { get; set; }
+
     // Hedera transaction ID returned after recording the hash on HCS
     [Required, MaxLength(255)]
     public string HederaTransactionId { get; set; } = string.Empty;

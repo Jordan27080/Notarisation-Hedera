@@ -174,6 +174,15 @@ export async function generateCertificate(data: CertificateData): Promise<Uint8A
   return pdfDoc.save()
 }
 
+/** Convertit un Uint8Array en chaîne base64 (chunks pour éviter le stack overflow) */
+export function uint8ToBase64(bytes: Uint8Array): string {
+  const CHUNK = 8192
+  let bin = ''
+  for (let i = 0; i < bytes.length; i += CHUNK)
+    bin += String.fromCharCode(...bytes.subarray(i, i + CHUNK))
+  return btoa(bin)
+}
+
 /** SHA-256 du PDF généré → notarisation Hedera */
 export async function hashPdfBytes(pdfBytes: Uint8Array): Promise<string> {
   const buf = await crypto.subtle.digest('SHA-256', pdfBytes.buffer as ArrayBuffer)

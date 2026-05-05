@@ -33,11 +33,19 @@ public class NotarisationService : INotarisationService
         var (txId, consensusTs) = await _hedera.RecordHashAsync(
             request.DocumentHash, request.FileName, user.HederaAccountId);
 
+        byte[]? pdfBytes = null;
+        if (!string.IsNullOrWhiteSpace(request.PdfBase64))
+        {
+            try { pdfBytes = Convert.FromBase64String(request.PdfBase64); }
+            catch { /* ignore malformed base64 — PDF storage is best-effort */ }
+        }
+
         var record = new NotarisationRecord
         {
             DocumentHash = request.DocumentHash.ToLowerInvariant(),
             FileName = request.FileName,
             Folder = request.Folder,
+            PdfContent = pdfBytes,
             HederaTransactionId = txId,
             ConsensusTimestamp = consensusTs,
             UserId = userId
@@ -97,6 +105,15 @@ public class NotarisationService : INotarisationService
         return records.Select(MapToResponse);
     }
 
+    public async Task<(byte[]? Content, string FileName)> GetPdfContentAsync(int userId, int recordId)
+    {
+        var record = await _db.NotarisationRecords
+            .FirstOrDefaultAsync(r => r.Id == recordId && r.UserId == userId);
+        return (record?.PdfContent, record?.FileName ?? string.Empty);
+    }
+
     private static NotariseResponse MapToResponse(NotarisationRecord r) => new(
-        r.Id, r.DocumentHash, r.FileName, r.Folder, r.HederaTransactionId, r.ConsensusTimestamp, r.NotarisedAt);
+        r.Id, r.DocumentHash, r.FileName, r.Folder,
+        r.HederaTransactionId, r.ConsensusTimestamp, r.NotarisedAt,
+        HasPdf: r.PdfContent is { Length: > 0 });
 }
