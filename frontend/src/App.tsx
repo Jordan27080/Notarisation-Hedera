@@ -7,6 +7,7 @@ import RegisterForm from './components/Auth/RegisterForm'
 import NotariseForm from './components/Notarisation/NotariseForm'
 import VerifyForm from './components/Verification/VerifyForm'
 import RecordsPage from './pages/RecordsPage'
+import CertificatePage from './pages/CertificatePage'
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
   const { isAuthenticated } = useAuth()
@@ -24,6 +25,7 @@ function AppRoutes() {
         <Route path="/verify" element={<VerifyForm />} />
         <Route path="/notarise" element={<ProtectedRoute><NotariseForm /></ProtectedRoute>} />
         <Route path="/records" element={<ProtectedRoute><RecordsPage /></ProtectedRoute>} />
+        <Route path="/certificates" element={<ProtectedRoute><CertificatePage /></ProtectedRoute>} />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
     </div>
