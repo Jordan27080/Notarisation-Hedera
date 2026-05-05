@@ -2,16 +2,18 @@ import client from './client'
 
 export interface NotarisePayload {
   documentHash: string
-  fileName: string
+  fileName:     string
+  folder?:      string   // nom de la formation — pour grouper dans Mes documents
 }
 
 export interface NotarisationRecord {
-  id: number
-  documentHash: string
-  fileName: string
+  id:                  number
+  documentHash:        string
+  fileName:            string
+  folder?:             string
   hederaTransactionId: string
-  consensusTimestamp: string | null
-  notarisedAt: string
+  consensusTimestamp:  string | null
+  notarisedAt:         string
 }
 
 export interface VerifyPayload {

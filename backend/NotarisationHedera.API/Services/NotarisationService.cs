@@ -37,6 +37,7 @@ public class NotarisationService : INotarisationService
         {
             DocumentHash = request.DocumentHash.ToLowerInvariant(),
             FileName = request.FileName,
+            Folder = request.Folder,
             HederaTransactionId = txId,
             ConsensusTimestamp = consensusTs,
             UserId = userId
@@ -97,5 +98,5 @@ public class NotarisationService : INotarisationService
     }
 
     private static NotariseResponse MapToResponse(NotarisationRecord r) => new(
-        r.Id, r.DocumentHash, r.FileName, r.HederaTransactionId, r.ConsensusTimestamp, r.NotarisedAt);
+        r.Id, r.DocumentHash, r.FileName, r.Folder, r.HederaTransactionId, r.ConsensusTimestamp, r.NotarisedAt);
 }

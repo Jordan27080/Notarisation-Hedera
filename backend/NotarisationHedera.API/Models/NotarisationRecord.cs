@@ -14,6 +14,10 @@ public class NotarisationRecord
     [MaxLength(255)]
     public string FileName { get; set; } = string.Empty;
 
+    // Optional grouping folder (e.g. training name for certificates)
+    [MaxLength(255)]
+    public string? Folder { get; set; }
+
     // Hedera transaction ID returned after recording the hash on HCS
     [Required, MaxLength(255)]
     public string HederaTransactionId { get; set; } = string.Empty;

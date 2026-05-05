@@ -27,8 +27,9 @@ interface ExcelRow {
 }
 
 interface BatchResult {
-  name:    string
-  status:  'ok' | 'error'
+  name:     string
+  status:   'ok' | 'error'
+  txId?:    string
   message?: string
 }
 
@@ -123,19 +124,19 @@ export default function CertificatePage() {
   const [endDate,      setEndDate]      = useState('')
 
   // Mode individuel
-  const [firstName, setFirstName] = useState('')
-  const [lastName,  setLastName]  = useState('')
-  const [pdfBytes,  setPdfBytes]  = useState<Uint8Array | null>(null)
+  const [firstName,  setFirstName]  = useState('')
+  const [lastName,   setLastName]   = useState('')
+  const [pdfBytes,   setPdfBytes]   = useState<Uint8Array | null>(null)
   const [previewUrl, setPreviewUrl] = useState<string | null>(null)
-  const [hash,      setHash]      = useState<string | null>(null)
-  const [fileName,  setFileName]  = useState('')
-  const [record,    setRecord]    = useState<NotarisationRecord | null>(null)
-  const [notarising, setNotarising] = useState(false)
+  const [hash,       setHash]       = useState<string | null>(null)
+  const [fileName,   setFileName]   = useState('')
+  const [record,     setRecord]     = useState<NotarisationRecord | null>(null)
+  const [downloading, setDownloading] = useState(false)  // notarisation auto en cours
 
   // Mode batch
-  const [excelRows,   setExcelRows]   = useState<ExcelRow[]>([])
-  const [excelError,  setExcelError]  = useState('')
-  const [batchResults, setBatchResults] = useState<BatchResult[]>([])
+  const [excelRows,     setExcelRows]     = useState<ExcelRow[]>([])
+  const [excelError,    setExcelError]    = useState('')
+  const [batchResults,  setBatchResults]  = useState<BatchResult[]>([])
   const [batchProgress, setBatchProgress] = useState(0)   // 0-100
 
   // Positions champs
@@ -191,18 +192,27 @@ export default function CertificatePage() {
     }
   }
 
-  async function handleNotarise() {
+  /** Télécharge le PDF ET notarise automatiquement sur Hedera */
+  async function handleDownload() {
     if (!pdfBytes || !hash) return
-    setNotarising(true)
+    // 1. Téléchargement immédiat
+    downloadPdf(pdfBytes, fileName)
+    // 2. Notarisation automatique (affiche un spinner pendant l'opération)
+    if (record) return   // déjà notarisé
+    setDownloading(true)
     setError('')
     try {
-      const rec = await notarisationApi.notarise({ documentHash: hash, fileName })
+      const rec = await notarisationApi.notarise({
+        documentHash: hash,
+        fileName,
+        folder: trainingName.trim() || undefined,
+      })
       setRecord(rec)
     } catch (e: unknown) {
       const msg = (e as { response?: { data?: { message?: string } } })?.response?.data?.message
-      setError(msg ?? 'Erreur lors de la notarisation')
+      setError(msg ?? 'Erreur lors de la notarisation automatique')
     } finally {
-      setNotarising(false)
+      setDownloading(false)
     }
   }
 
@@ -228,24 +238,29 @@ export default function CertificatePage() {
     setGenerating(true)
     setBatchResults([])
     setBatchProgress(0)
-    const zip = new JSZip()
+    const zip     = new JSZip()
     const results: BatchResult[] = []
+    const folder  = trainingName.trim() || undefined
 
     for (let i = 0; i < excelRows.length; i++) {
-      const row = excelRows[i]
-      const label = `${row.lastName.trim()}_${row.firstName.trim()}`
+      const row   = excelRows[i]
+      const label = `${row.lastName.trim()}_${row.firstName.trim()}`.replace(/\s+/g, '_')
+      const displayName = [row.firstName, row.lastName].filter(Boolean).join(' ')
       try {
-        const data: CertificateData = {
-          firstName:    row.firstName,
-          lastName:     row.lastName,
-          trainingName, startDate, endDate,
-        }
-        const bytes = await generateCertificateAtPositions(data, TEMPLATE_URL, positions)
-        zip.file(`Attestation_${label}.pdf`.replace(/\s+/g, '_'), bytes)
-        results.push({ name: `${row.firstName} ${row.lastName}`, status: 'ok' })
+        // 1. Génère le PDF
+        const data: CertificateData = { firstName: row.firstName, lastName: row.lastName, trainingName, startDate, endDate }
+        const bytes    = await generateCertificateAtPositions(data, TEMPLATE_URL, positions)
+        const docHash  = await hashPdfBytes(bytes)
+        const pdfName  = `Attestation_${label}.pdf`
+
+        // 2. Ajoute au ZIP
+        zip.file(pdfName, bytes)
+
+        // 3. Notarise automatiquement sur Hedera
+        const rec = await notarisationApi.notarise({ documentHash: docHash, fileName: pdfName, folder })
+        results.push({ name: displayName, status: 'ok', txId: rec.hederaTransactionId })
       } catch (e) {
-        results.push({ name: `${row.firstName} ${row.lastName}`, status: 'error',
-          message: e instanceof Error ? e.message : String(e) })
+        results.push({ name: displayName, status: 'error', message: e instanceof Error ? e.message : String(e) })
       }
       setBatchProgress(Math.round(((i + 1) / excelRows.length) * 100))
       setBatchResults([...results])
@@ -256,7 +271,7 @@ export default function CertificatePage() {
     const url  = URL.createObjectURL(blob)
     const a    = document.createElement('a')
     a.href     = url
-    a.download = `Attestations_${trainingName.replace(/\s+/g, '_')}.zip`
+    a.download = `Attestations_${(trainingName || 'Formation').replace(/\s+/g, '_')}.zip`
     a.click()
     setTimeout(() => URL.revokeObjectURL(url), 10_000)
     setGenerating(false)
@@ -484,17 +499,21 @@ export default function CertificatePage() {
             </div>
           )}
 
-          {/* Résultats batch */}
+          {/* Résultats batch (avec TX Hedera) */}
           {mode === 'batch' && batchResults.length > 0 && (
-            <div className="card" style={{ padding: '.75rem', maxHeight: 200, overflowY: 'auto' }}>
+            <div className="card" style={{ padding: '.75rem', maxHeight: 220, overflowY: 'auto' }}>
               {batchResults.map((r, i) => (
-                <div key={i} style={{
-                  display: 'flex', alignItems: 'center', gap: '.5rem',
-                  fontSize: '.8rem', padding: '.2rem 0',
-                }}>
-                  <span>{r.status === 'ok' ? '✅' : '❌'}</span>
-                  <span style={{ flex: 1 }}>{r.name}</span>
-                  {r.message && <span style={{ color: 'var(--error)', fontSize: '.75rem' }}>{r.message}</span>}
+                <div key={i} style={{ fontSize: '.78rem', padding: '.3rem 0', borderBottom: i < batchResults.length - 1 ? '1px solid var(--border)' : 'none' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '.5rem' }}>
+                    <span>{r.status === 'ok' ? '✅' : '❌'}</span>
+                    <span style={{ fontWeight: 600 }}>{r.name}</span>
+                    {r.message && <span style={{ color: 'var(--error)' }}>{r.message}</span>}
+                  </div>
+                  {r.txId && (
+                    <p style={{ fontFamily: 'monospace', fontSize: '.7rem', color: 'var(--text-muted)', marginLeft: '1.4rem', marginTop: '.1rem', wordBreak: 'break-all' }}>
+                      ⛓ {r.txId}
+                    </p>
+                  )}
                 </div>
               ))}
             </div>
@@ -503,12 +522,16 @@ export default function CertificatePage() {
           {/* Actions post-génération individuelle */}
           {mode === 'single' && pdfBytes && (
             <div style={{ display: 'flex', flexDirection: 'column', gap: '.6rem' }}>
+              {/* Bouton unique : télécharge + notarise automatiquement */}
               <button
-                className="btn-secondary"
-                style={{ padding: '.65rem', fontWeight: 600 }}
-                onClick={() => downloadPdf(pdfBytes, fileName)}
+                className="btn-primary"
+                style={{ padding: '.65rem', fontWeight: 700 }}
+                disabled={downloading}
+                onClick={handleDownload}
               >
-                ⬇️ Télécharger le PDF
+                {downloading
+                  ? <><span className="spinner" style={{ marginRight: 8 }} />Notarisation en cours…</>
+                  : record ? '⬇️ Re-télécharger le PDF' : '⬇️ Télécharger & Notariser sur Hedera'}
               </button>
 
               {record ? (
@@ -525,16 +548,7 @@ export default function CertificatePage() {
                       : '—'}
                   />
                 </div>
-              ) : (
-                <button
-                  className="btn-primary"
-                  style={{ padding: '.65rem', fontWeight: 600 }}
-                  disabled={notarising}
-                  onClick={handleNotarise}
-                >
-                  {notarising ? <span className="spinner" /> : '⛓️ Notariser sur Hedera'}
-                </button>
-              )}
+              ) : null}
             </div>
           )}
         </div>
