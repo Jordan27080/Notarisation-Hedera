@@ -138,10 +138,16 @@ Notarisation-Hedera/
 | Outil | Version minimale | Usage |
 |-------|-----------------|-------|
 | [.NET SDK](https://dotnet.microsoft.com/download) | 9.0 | Backend |
-| [Node.js](https://nodejs.org) | 20 | Frontend |
+| [Node.js](https://nodejs.org) | **22 LTS** | Frontend (Vite 8 requiert Node ≥ 22) |
+| npm | 10 | Gestionnaire de paquets frontend |
 | MySQL | 8.0 | Base de données (développement local) |
 | [Docker + Docker Compose](https://docs.docker.com/get-docker/) | 24 | Déploiement conteneurisé |
 | Compte Hedera | — | [portal.hedera.com](https://portal.hedera.com) |
+
+> **Version Node.js** : un fichier `.nvmrc` est présent dans `frontend/`. Si vous utilisez [nvm](https://github.com/nvm-sh/nvm) :
+> ```bash
+> cd frontend && nvm use   # installe et active automatiquement Node 22
+> ```
 
 ---
 
