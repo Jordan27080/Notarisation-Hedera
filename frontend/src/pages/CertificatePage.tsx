@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import * as pdfjsLib from 'pdfjs-dist'
+import { pdfjsLib } from '../utils/pdfjs'
 import * as XLSX from 'xlsx'
 import JSZip from 'jszip'
 import {
@@ -13,8 +13,6 @@ import {
 import TemplateFieldEditor, { type FieldPositions } from '../components/Certificate/TemplateFieldEditor'
 import { notarisationApi, type NotarisationRecord } from '../api/notarisation'
 import Req from '../components/ui/Req'
-
-pdfjsLib.GlobalWorkerOptions.workerSrc = '/pdf.worker.min.mjs'
 
 const TEMPLATE_URL = '/template-cert.pdf'
 
