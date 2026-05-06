@@ -1,8 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import * as pdfjsLib from 'pdfjs-dist'
-
-// Worker servi depuis /public
-pdfjsLib.GlobalWorkerOptions.workerSrc = '/pdf.worker.min.mjs'
+import { pdfjsLib } from '../../utils/pdfjs'
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 

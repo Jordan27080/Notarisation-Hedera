@@ -5,7 +5,8 @@ obj/
 *.db-shm
 *.db-wal
 appsettings.Development.json
-appsettings.json
+# appsettings.json volontairement tracké avec des placeholders.
+# Mettez vos vraies valeurs dans appsettings.Development.json (gitignored).
 
 # Node
 node_modules/
