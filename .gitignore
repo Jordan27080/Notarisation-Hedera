@@ -12,6 +12,9 @@ appsettings.Development.json
 node_modules/
 dist/
 .env
+# Le lockfile est généré localement (versions npm différentes selon les machines)
+# Les versions sont déjà fixées dans package.json
+package-lock.json
 
 # IDE
 .vs/
