@@ -2,6 +2,7 @@ import { useState, useCallback } from 'react'
 import { useDropzone } from 'react-dropzone'
 import { notarisationApi, type VerifyResult } from '../../api/notarisation'
 import { hashFile } from '../../utils/crypto'
+import Req from '../ui/Req'
 
 export default function VerifyForm() {
   const [file, setFile] = useState<File | null>(null)
@@ -44,6 +45,9 @@ export default function VerifyForm() {
       </p>
 
       <div className="card" style={{ marginBottom: '1.5rem' }}>
+        <label style={{ display: 'block', fontWeight: 600, fontSize: '.875rem', marginBottom: '.6rem' }}>
+          Document à vérifier <Req />
+        </label>
         <div
           {...getRootProps()}
           style={{

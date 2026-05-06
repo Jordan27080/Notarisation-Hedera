@@ -29,6 +29,18 @@ public class NotarisationController(INotarisationService notarisationService) : 
         return Ok(records);
     }
 
+    [HttpGet("{id:int}/download")]
+    [ProducesResponseType(typeof(FileContentResult), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> DownloadPdf(int id)
+    {
+        var userId = GetUserId();
+        var (content, fileName) = await notarisationService.GetPdfContentAsync(userId, id);
+        if (content is null or { Length: 0 })
+            return NotFound("PDF non disponible pour ce document.");
+        return File(content, "application/pdf", fileName);
+    }
+
     private int GetUserId()
     {
         var claim = User.FindFirst(ClaimTypes.NameIdentifier)?.Value

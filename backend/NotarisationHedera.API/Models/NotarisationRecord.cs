@@ -14,8 +14,15 @@ public class NotarisationRecord
     [MaxLength(255)]
     public string FileName { get; set; } = string.Empty;
 
+    // Optional grouping folder (e.g. training name for certificates)
+    [MaxLength(255)]
+    public string? Folder { get; set; }
+
+    // PDF content stored for re-download (never exposed in list responses)
+    public byte[]? PdfContent { get; set; }
+
     // Hedera transaction ID returned after recording the hash on HCS
-    [Required, MaxLength(100)]
+    [Required, MaxLength(255)]
     public string HederaTransactionId { get; set; } = string.Empty;
 
     // Hedera consensus timestamp (immutable proof of existence)

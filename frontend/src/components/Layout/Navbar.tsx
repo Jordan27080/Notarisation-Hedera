@@ -31,9 +31,10 @@ export default function Navbar() {
         {isAuthenticated ? (
           <>
             <Link to="/notarise" style={{ color: 'rgba(255,255,255,.85)' }}>Notariser</Link>
+            <Link to="/certificates" style={{ color: 'rgba(255,255,255,.85)' }}>Certificats</Link>
             <Link to="/records" style={{ color: 'rgba(255,255,255,.85)' }}>Mes documents</Link>
-            <span style={{ color: 'rgba(255,255,255,.6)', fontSize: '.75rem' }}>
-              {user?.hederaAccountId}
+            <span style={{ color: 'rgba(255,255,255,.85)', fontSize: '.875rem', fontWeight: 500 }}>
+              👤 {user?.username}
             </span>
             <button
               onClick={handleLogout}

@@ -10,18 +10,25 @@
   },
   "dependencies": {
     "@hashgraph/sdk": "^2.51.0",
+    "@noble/ed25519": "^3.1.0",
+    "@noble/hashes": "^2.2.0",
+    "@tanstack/react-query": "^5.50.0",
     "axios": "^1.7.2",
+    "jszip": "^3.10.1",
+    "pdf-lib": "^1.17.1",
+    "pdfjs-dist": "^5.7.284",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
-    "react-router-dom": "^6.24.0",
     "react-dropzone": "^14.2.3",
-    "@tanstack/react-query": "^5.50.0"
+    "react-router-dom": "^6.24.0",
+    "xlsx": "^0.18.5"
   },
   "devDependencies": {
     "@types/react": "^18.3.3",
     "@types/react-dom": "^18.3.0",
     "@vitejs/plugin-react": "^4.3.1",
     "typescript": "^5.5.3",
-    "vite": "^5.3.4"
+    "vite": "^5.3.4",
+    "vite-plugin-node-polyfills": "^0.26.0"
   }
 }

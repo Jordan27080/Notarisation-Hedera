@@ -44,7 +44,9 @@ public class HederaService : IHederaService
             ParseAddress(_topicId),
             messageBytes);
 
-        var txId = record.Id.ToString();
+        // Format: "0.0.XXXXX@seconds.nanos"  (mirror node standard)
+        var txId = $"{record.Id.Address.ShardNum}.{record.Id.Address.RealmNum}.{record.Id.Address.AccountNum}" +
+                   $"@{record.Id.ValidStartSeconds}.{record.Id.ValidStartNanos}";
         var consensusTime = record.Concensus ?? DateTime.UtcNow;
 
         _logger.LogInformation("Hash recorded on Hedera HCS. TxId={TxId} Consensus={Ts}", txId, consensusTime);
@@ -110,10 +112,32 @@ public class HederaService : IHederaService
     }
 
     // "0.0.12345@1234567890.000000000" → "0.0.12345-1234567890-000000000"
+    // Also handles legacy C# object-toString format:
+    // "TxId { Address = Address { ShardNum = 0, RealmNum = 0, AccountNum = 12345 },
+    //         ValidStartSeconds = 1234567890, ValidStartNanos = 123456789 }"
     private static string ToMirrorNodeTxId(string txId)
     {
+        // Standard format: "0.0.12345@1234567890.000000000"
         var m = Regex.Match(txId, @"^(\d+\.\d+\.\d+)@(\d+)\.(\d+)$");
-        return m.Success ? $"{m.Groups[1].Value}-{m.Groups[2].Value}-{m.Groups[3].Value}" : txId;
+        if (m.Success)
+            return $"{m.Groups[1].Value}-{m.Groups[2].Value}-{m.Groups[3].Value}";
+
+        // Legacy C# object-toString format
+        var legacy = Regex.Match(txId,
+            @"ShardNum\s*=\s*(\d+).*?RealmNum\s*=\s*(\d+).*?AccountNum\s*=\s*(\d+).*?" +
+            @"ValidStartSeconds\s*=\s*(\d+).*?ValidStartNanos\s*=\s*(\d+)",
+            RegexOptions.Singleline);
+        if (legacy.Success)
+        {
+            var shard   = legacy.Groups[1].Value;
+            var realm   = legacy.Groups[2].Value;
+            var account = legacy.Groups[3].Value;
+            var secs    = legacy.Groups[4].Value;
+            var nanos   = legacy.Groups[5].Value;
+            return $"{shard}.{realm}.{account}-{secs}-{nanos}";
+        }
+
+        return txId;
     }
 
     private static Address ParseAddress(string id)

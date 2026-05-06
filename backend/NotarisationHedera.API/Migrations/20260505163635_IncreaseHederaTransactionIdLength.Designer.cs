@@ -3,6 +3,7 @@ using System;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Metadata;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using NotarisationHedera.API.Data;
 
@@ -11,9 +12,11 @@ using NotarisationHedera.API.Data;
 namespace NotarisationHedera.API.Migrations
 {
     [DbContext(typeof(AppDbContext))]
-    partial class AppDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260505163635_IncreaseHederaTransactionIdLength")]
+    partial class IncreaseHederaTransactionIdLength
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -43,10 +46,6 @@ namespace NotarisationHedera.API.Migrations
                         .HasMaxLength(255)
                         .HasColumnType("varchar(255)");
 
-                    b.Property<string>("Folder")
-                        .HasMaxLength(255)
-                        .HasColumnType("varchar(255)");
-
                     b.Property<string>("HederaTransactionId")
                         .IsRequired()
                         .HasMaxLength(255)
@@ -54,9 +53,6 @@ namespace NotarisationHedera.API.Migrations
 
                     b.Property<DateTime>("NotarisedAt")
                         .HasColumnType("datetime(6)");
-
-                    b.Property<byte[]>("PdfContent")
-                        .HasColumnType("longblob");
 
                     b.Property<int>("UserId")
                         .HasColumnType("int");
