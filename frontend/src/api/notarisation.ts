@@ -46,7 +46,10 @@ export const notarisationApi = {
     const a   = document.createElement('a')
     a.href     = url
     a.download = fileName
+    // L'élément doit être dans le DOM avant .click() — sinon Chrome bloque le blob URL
+    document.body.appendChild(a)
     a.click()
+    document.body.removeChild(a)
     setTimeout(() => URL.revokeObjectURL(url), 10_000)
   },
 

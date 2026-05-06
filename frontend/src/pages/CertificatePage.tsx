@@ -331,7 +331,10 @@ export default function CertificatePage() {
     const a    = document.createElement('a')
     a.href     = url
     a.download = `Attestations_${(trainingName || 'Formation').replace(/\s+/g, '_')}.zip`
+    // L'élément doit être dans le DOM avant .click() — sinon Chrome bloque le blob URL
+    document.body.appendChild(a)
     a.click()
+    document.body.removeChild(a)
     setTimeout(() => URL.revokeObjectURL(url), 10_000)
     setGenerating(false)
   }
@@ -689,14 +692,25 @@ export default function CertificatePage() {
               <p style={{ fontSize: '.8rem', fontWeight: 700, marginBottom: '.5rem' }}>
                 ✅ Aperçu de l'attestation générée
               </p>
-              <iframe
-                src={previewUrl}
-                title="Aperçu"
+              {/* <object> évite l'erreur "Not allowed to load local resource: blob:" */}
+              {/* que Chrome lève parfois sur les <iframe src={blobUrl}>               */}
+              <object
+                data={previewUrl}
+                type="application/pdf"
                 style={{
+                  display: 'block',
                   width: '100%', height: 520,
                   border: '1px solid var(--border)', borderRadius: 8,
                 }}
-              />
+              >
+                {/* Fallback si le navigateur ne peut pas afficher le PDF inline */}
+                <p style={{ padding: '1rem', fontSize: '.85rem' }}>
+                  Votre navigateur ne supporte pas l'aperçu PDF.{' '}
+                  <a href={previewUrl} download={fileName} target="_blank" rel="noreferrer">
+                    Télécharger le PDF
+                  </a>
+                </p>
+              </object>
             </div>
           )}
         </div>
