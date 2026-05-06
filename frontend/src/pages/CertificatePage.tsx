@@ -11,6 +11,7 @@ import {
   type CertificateData,
 } from '../utils/certificate'
 import TemplateFieldEditor, { type FieldPositions } from '../components/Certificate/TemplateFieldEditor'
+import PdfCanvas from '../components/Certificate/PdfCanvas'
 import { notarisationApi, type NotarisationRecord } from '../api/notarisation'
 import Req from '../components/ui/Req'
 
@@ -684,31 +685,14 @@ export default function CertificatePage() {
             </div>
           )}
 
-          {/* Aperçu PDF individuel */}
-          {mode === 'single' && previewUrl && (
+          {/* Aperçu PDF individuel — rendu via PDF.js canvas */}
+          {/* Fonctionne quel que soit le réglage "Télécharger les PDF auto" du navigateur */}
+          {mode === 'single' && pdfBytes && (
             <div style={{ marginTop: '1.5rem' }}>
               <p style={{ fontSize: '.8rem', fontWeight: 700, marginBottom: '.5rem' }}>
                 ✅ Aperçu de l'attestation générée
               </p>
-              {/* <object> évite l'erreur "Not allowed to load local resource: blob:" */}
-              {/* que Chrome lève parfois sur les <iframe src={blobUrl}>               */}
-              <object
-                data={previewUrl}
-                type="application/pdf"
-                style={{
-                  display: 'block',
-                  width: '100%', height: 520,
-                  border: '1px solid var(--border)', borderRadius: 8,
-                }}
-              >
-                {/* Fallback si le navigateur ne peut pas afficher le PDF inline */}
-                <p style={{ padding: '1rem', fontSize: '.85rem' }}>
-                  Votre navigateur ne supporte pas l'aperçu PDF.{' '}
-                  <a href={previewUrl} download={fileName} target="_blank" rel="noreferrer">
-                    Télécharger le PDF
-                  </a>
-                </p>
-              </object>
+              <PdfCanvas pdfBytes={pdfBytes} />
             </div>
           )}
         </div>
