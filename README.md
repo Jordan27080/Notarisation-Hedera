@@ -11,12 +11,13 @@ Plateforme complète de **notarisation de documents numériques** et de **géné
 3. [Fonctionnalités](#fonctionnalités)
 4. [Prérequis](#prérequis)
 5. [Installation locale](#installation-locale)
-6. [Déploiement Docker](#déploiement-docker)
-7. [Déploiement en production](#déploiement-en-production)
-8. [Workflows utilisateur](#workflows-utilisateur)
-9. [API REST](#api-rest)
-10. [Sécurité](#sécurité)
-11. [Technologies](#technologies)
+6. [Mise à jour](#mise-à-jour-développeurs-existants)
+7. [Déploiement Docker](#déploiement-docker)
+8. [Déploiement en production](#déploiement-en-production)
+9. [Workflows utilisateur](#workflows-utilisateur)
+10. [API REST](#api-rest)
+11. [Sécurité](#sécurité)
+12. [Technologies](#technologies)
 
 ---
 
@@ -78,8 +79,10 @@ Notarisation-Hedera/
 │       │   └── ui/Req.tsx                 # Indicateur champ obligatoire (*)
 │       ├── utils/
 │       │   ├── certificate.ts             # Génération PDF (pdf-lib)
+│       │   ├── pdfjs.ts                   # Init worker PDF.js (point d'entrée unique)
 │       │   ├── crypto.ts                  # SHA-256 (Web Crypto API)
 │       │   └── hedera.ts                  # ED25519 (@noble/ed25519)
+│       ├── vite-env.d.ts                  # Types Vite (?url, ?worker)
 │       ├── api/
 │       │   ├── notarisation.ts
 │       │   ├── auth.ts
@@ -152,32 +155,40 @@ cd Notarisation-Hedera
 git checkout loic
 ```
 
-### 2. Variables d'environnement
+### 2. Configuration du backend
+
+`appsettings.json` est commité dans le dépôt avec des **valeurs placeholder** (aucune clé réelle).  
+Chaque développeur crée son propre fichier **gitignored** à partir du template :
 
 ```bash
-cp .env.example .env
+cd backend/NotarisationHedera.API
+cp appsettings.Development.json.example appsettings.Development.json
 ```
 
-Compléter `.env` avec vos valeurs :
+Puis éditer `appsettings.Development.json` :
 
-```env
-# Réseau Hedera : testnet (gratuit) ou mainnet
-HEDERA_NETWORK=testnet
-
-# Compte opérateur Hedera (créé sur portal.hedera.com)
-HEDERA_OPERATOR_ACCOUNT_ID=0.0.XXXXX
-HEDERA_OPERATOR_PRIVATE_KEY=302e020100300506032b657004220420...
-
-# Topic HCS (voir note ci-dessous)
-HEDERA_TOPIC_ID=0.0.XXXXX
-
-# Clé secrète JWT — minimum 32 caractères, à changer en production
-JWT_KEY=CHANGEZ_MOI_SECRET_ALEATOIRE_LONG_32_CHARS_MIN
+```json
+{
+  "ConnectionStrings": {
+    "DefaultConnection": "Server=localhost;Port=3306;Database=notarisation;User=root;Password=VOTRE_MOT_DE_PASSE_MYSQL;"
+  },
+  "Jwt": {
+    "Key": "UN_SECRET_ALEATOIRE_MINIMUM_32_CARACTERES"
+  },
+  "Hedera": {
+    "Network": "testnet",
+    "OperatorAccountId": "0.0.XXXXX",
+    "OperatorPrivateKey": "302e020100300506032b657004220420...",
+    "TopicId": "0.0.XXXXX"
+  }
+}
 ```
 
-> **Créer un topic HCS (une seule fois)**
+> **Obtenir ses credentials Hedera (gratuit)**
 >
-> Si vous n'avez pas encore de `HEDERA_TOPIC_ID` :
+> 1. Créer un compte sur **https://portal.hedera.com** → réseau **Testnet**
+> 2. Copier l'**Account ID** (`0.0.XXXXX`) et la **DER Private Key** (`302e...`)
+> 3. Créer un **Topic HCS** (une seule fois) :
 >
 > ```js
 > // create-topic.mjs
@@ -195,6 +206,13 @@ JWT_KEY=CHANGEZ_MOI_SECRET_ALEATOIRE_LONG_32_CHARS_MIN
 > node create-topic.mjs
 > ```
 
+> ⚠️ Si la configuration Hedera est manquante ou incomplète, l'API retourne une erreur
+> explicite au lieu d'un `FormatException` cryptique :
+> ```
+> Configuration Hedera incomplète — clés manquantes : Hedera:OperatorAccountId, ...
+> Copiez appsettings.Development.json.example → appsettings.Development.json
+> ```
+
 ### 3. Base de données
 
 Créer la base MySQL :
@@ -203,13 +221,7 @@ Créer la base MySQL :
 CREATE DATABASE notarisation CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 ```
 
-Mettre à jour la chaîne de connexion dans `backend/NotarisationHedera.API/appsettings.json` :
-
-```json
-"DefaultConnection": "Server=localhost;Port=3306;Database=notarisation;User=root;Password=VOTRE_MDP;"
-```
-
-Appliquer les migrations EF Core :
+Appliquer les migrations EF Core (automatique au démarrage, ou manuellement) :
 
 ```bash
 cd backend/NotarisationHedera.API
@@ -223,7 +235,7 @@ cd backend/NotarisationHedera.API
 dotnet run
 ```
 
-> API disponible sur **http://localhost:7001**
+> API disponible sur **http://localhost:7001**  
 > Swagger UI : **http://localhost:7001/swagger**
 
 ### 5. Lancer le frontend
@@ -235,6 +247,33 @@ npm run dev
 ```
 
 > Application disponible sur **http://localhost:5173**
+
+---
+
+## Mise à jour (développeurs existants)
+
+Pour récupérer les derniers commits sur une machine déjà configurée :
+
+```bash
+# 1. Récupérer les mises à jour
+git pull origin loic
+
+# 2. Mettre à jour les dépendances si nécessaire
+cd backend/NotarisationHedera.API && dotnet restore && cd ../..
+cd frontend && npm install && cd ..
+
+# 3. Appliquer les nouvelles migrations (si ajoutées)
+cd backend/NotarisationHedera.API && dotnet ef database update && cd ../..
+
+# 4. Relancer
+#   Terminal 1 :
+cd backend/NotarisationHedera.API && dotnet run
+#   Terminal 2 :
+cd frontend && npm run dev
+```
+
+> `appsettings.Development.json` étant gitignored, il n'est **jamais écrasé** par un `git pull`.
+> Il n'est à créer qu'**une seule fois** par machine.
 
 ---
 
