@@ -20,15 +20,37 @@ public class HederaService : IHederaService
         _config = config;
         _logger = logger;
         _httpClientFactory = httpClientFactory;
-        _network = config["Hedera:Network"] ?? "testnet";
-        _operatorAccountId = config["Hedera:OperatorAccountId"] ?? string.Empty;
-        _operatorPrivateKey = config["Hedera:OperatorPrivateKey"] ?? string.Empty;
-        _topicId = config["Hedera:TopicId"] ?? string.Empty;
+        _network             = config["Hedera:Network"] ?? "testnet";
+        _operatorAccountId   = config["Hedera:OperatorAccountId"] ?? string.Empty;
+        _operatorPrivateKey  = config["Hedera:OperatorPrivateKey"] ?? string.Empty;
+        _topicId             = config["Hedera:TopicId"] ?? string.Empty;
+    }
+
+    /// <summary>
+    /// Vérifie que toutes les variables Hedera sont renseignées et lève une exception
+    /// explicite si ce n'est pas le cas (évite le cryptique FormatException plus bas).
+    /// </summary>
+    private void EnsureConfigured()
+    {
+        var missing = new List<string>();
+        if (string.IsNullOrWhiteSpace(_operatorAccountId))  missing.Add("Hedera:OperatorAccountId");
+        if (string.IsNullOrWhiteSpace(_operatorPrivateKey)) missing.Add("Hedera:OperatorPrivateKey");
+        if (string.IsNullOrWhiteSpace(_topicId))            missing.Add("Hedera:TopicId");
+
+        if (missing.Count == 0) return;
+
+        var hint =
+            "Copiez appsettings.Development.json.example → appsettings.Development.json " +
+            "et renseignez votre compte Hedera (https://portal.hedera.com).";
+
+        throw new InvalidOperationException(
+            $"Configuration Hedera incomplète — clés manquantes : {string.Join(", ", missing)}. {hint}");
     }
 
     public async Task<(string TransactionId, DateTime ConsensusTimestamp)> RecordHashAsync(
         string documentHash, string fileName, string hederaAccountId)
     {
+        EnsureConfigured();
         var client = BuildClient();
 
         var payload = JsonSerializer.Serialize(new

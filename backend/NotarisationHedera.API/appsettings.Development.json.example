@@ -1,0 +1,14 @@
+{
+  "ConnectionStrings": {
+    "DefaultConnection": "Server=localhost;Port=3306;Database=notarisation;User=root;Password=VOTRE_MOT_DE_PASSE_MYSQL;"
+  },
+  "Jwt": {
+    "Key": "VOTRE_SECRET_JWT_ALEATOIRE_MINIMUM_32_CARACTERES"
+  },
+  "Hedera": {
+    "Network": "testnet",
+    "OperatorAccountId": "0.0.XXXXX",
+    "OperatorPrivateKey": "302e020100300506032b657004220420...",
+    "TopicId": "0.0.XXXXX"
+  }
+}
