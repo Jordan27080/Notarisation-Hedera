@@ -418,9 +418,9 @@ export default function CertificatePage() {
                 <FormField label="Prénom">
                   <input
                     className="form-input"
-                    placeholder="ex : Jean"
+                    placeholder="ex : JEAN"
                     value={firstName}
-                    onChange={e => { setFirstName(e.target.value); resetPdf() }}
+                    onChange={e => { setFirstName(e.target.value.toUpperCase()); resetPdf() }}
                   />
                 </FormField>
                 <FormField label={<>Nom <Req /></>}>
@@ -428,7 +428,7 @@ export default function CertificatePage() {
                     className="form-input"
                     placeholder="ex : DUPONT"
                     value={lastName}
-                    onChange={e => { setLastName(e.target.value); resetPdf() }}
+                    onChange={e => { setLastName(e.target.value.toUpperCase()); resetPdf() }}
                   />
                 </FormField>
               </FormRow>
@@ -545,9 +545,12 @@ export default function CertificatePage() {
             <FormField label={<>Nom de la formation <Req /></>}>
               <input
                 className="form-input"
-                placeholder="ex : Développement Web avec React"
+                placeholder="ex : DÉVELOPPEMENT WEB AVEC REACT"
                 value={trainingName}
-                onChange={e => { setTrainingName(e.target.value); resetPdf() }}
+                // Mise en majuscules à la saisie : la valeur stockée est déjà
+                // en capitales, donc le chip, le PDF, le dossier de regroupement
+                // et le nom du ZIP restent cohérents entre eux.
+                onChange={e => { setTrainingName(e.target.value.toUpperCase()); resetPdf() }}
               />
             </FormField>
             <FormRow style={{ marginTop: '.75rem' }}>
