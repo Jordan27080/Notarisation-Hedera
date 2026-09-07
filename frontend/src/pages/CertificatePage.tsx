@@ -13,6 +13,7 @@ import {
 import TemplateFieldEditor, { type FieldPositions } from '../components/Certificate/TemplateFieldEditor'
 import PdfCanvas from '../components/Certificate/PdfCanvas'
 import { notarisationApi, type NotarisationRecord } from '../api/notarisation'
+import { apiErrorMessage, isHederaUnavailable } from '../api/errors'
 import Req from '../components/ui/Req'
 
 const TEMPLATE_URL = '/template-cert.pdf'
@@ -194,6 +195,7 @@ export default function CertificatePage() {
   const [excelValidation, setExcelValidation] = useState<ExcelValidation | null>(null)
   const [batchResults,   setBatchResults]   = useState<BatchResult[]>([])
   const [batchProgress,  setBatchProgress]  = useState(0)
+  const [batchAborted,   setBatchAborted]   = useState('')
 
   // Positions champs
   const [positions, setPositions] = useState<FieldPositions | null>(null)
@@ -265,9 +267,8 @@ export default function CertificatePage() {
         pdfBase64: uint8ToBase64(pdfBytes!),
       })
       setRecord(rec)
-    } catch (e: unknown) {
-      const msg = (e as { response?: { data?: { message?: string } } })?.response?.data?.message
-      setError(msg ?? 'Erreur lors de la notarisation automatique')
+    } catch (e) {
+      setError(await apiErrorMessage(e, 'Erreur lors de la notarisation automatique'))
     } finally {
       setDownloading(false)
     }
@@ -296,6 +297,7 @@ export default function CertificatePage() {
     setGenerating(true)
     setBatchResults([])
     setBatchProgress(0)
+    setBatchAborted('')
     const zip     = new JSZip()
     const results: BatchResult[] = []
     const folder  = trainingName.trim() || undefined
@@ -318,7 +320,22 @@ export default function CertificatePage() {
         const rec = await notarisationApi.notarise({ documentHash: docHash, fileName: pdfName, folder, pdfBase64: uint8ToBase64(bytes) })
         results.push({ name: displayName, status: 'ok', txId: rec.hederaTransactionId })
       } catch (e) {
-        results.push({ name: displayName, status: 'error', message: e instanceof Error ? e.message : String(e) })
+        results.push({ name: displayName, status: 'error', message: await apiErrorMessage(e, 'Échec de la notarisation') })
+
+        // Réseau Hedera injoignable : toutes les lignes suivantes échoueraient
+        // à l'identique. On interrompt au lieu d'enchaîner N appels perdus.
+        if (isHederaUnavailable(e)) {
+          const left = excelRows.length - (i + 1)
+          setBatchAborted(
+            'Traitement interrompu : le réseau Hedera est injoignable. ' +
+            (left > 0
+              ? `${left} attestation${left > 1 ? 's' : ''} restante${left > 1 ? 's' : ''} non traitée${left > 1 ? 's' : ''}. `
+              : '') +
+            'Les PDF déjà générés sont dans le ZIP mais ne sont pas notarisés.'
+          )
+          setBatchResults([...results])
+          break
+        }
       }
       setBatchProgress(Math.round(((i + 1) / excelRows.length) * 100))
       setBatchResults([...results])
@@ -589,6 +606,11 @@ export default function CertificatePage() {
                 transition: 'width .2s',
               }} />
             </div>
+          )}
+
+          {/* Lot interrompu : réseau Hedera indisponible */}
+          {mode === 'batch' && batchAborted && (
+            <div className="alert alert-error">⛔ {batchAborted}</div>
           )}
 
           {/* Résultats batch (avec TX Hedera) */}

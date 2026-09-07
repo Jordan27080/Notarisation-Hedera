@@ -9,6 +9,7 @@
     "Network": "testnet",
     "OperatorAccountId": "0.0.XXXXX",
     "OperatorPrivateKey": "302e020100300506032b657004220420...",
-    "TopicId": "0.0.XXXXX"
+    "TopicId": "0.0.XXXXX",
+    "TimeoutSeconds": 30
   }
 }

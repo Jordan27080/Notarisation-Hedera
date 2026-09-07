@@ -2,6 +2,7 @@ import { useState, useCallback } from 'react'
 import { useDropzone } from 'react-dropzone'
 import { notarisationApi, type NotarisationRecord } from '../../api/notarisation'
 import { hashFile } from '../../utils/crypto'
+import { apiErrorMessage } from '../../api/errors'
 import Req from '../ui/Req'
 
 export default function NotariseForm() {
@@ -29,9 +30,8 @@ export default function NotariseForm() {
     try {
       const record = await notarisationApi.notarise({ documentHash: hash, fileName: file.name })
       setResult(record)
-    } catch (err: unknown) {
-      const msg = (err as { response?: { data?: { message?: string } } })?.response?.data?.message
-      setError(msg ?? 'Erreur lors de la notarisation')
+    } catch (err) {
+      setError(await apiErrorMessage(err, 'Erreur lors de la notarisation'))
     } finally {
       setLoading(false)
     }

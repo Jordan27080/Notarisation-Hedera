@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { notarisationApi, type NotarisationRecord } from '../api/notarisation'
+import { apiErrorMessage } from '../api/errors'
 import React from 'react'
 
 // ─── Groupement par dossier ───────────────────────────────────────────────────
@@ -140,8 +141,8 @@ function FileRow({ rec, last }: { rec: NotarisationRecord; last: boolean }) {
     setDlError('')
     try {
       await notarisationApi.downloadPdf(rec.id, rec.fileName)
-    } catch {
-      setDlError('Téléchargement impossible.')
+    } catch (err) {
+      setDlError(await apiErrorMessage(err, 'Téléchargement impossible.'))
     } finally {
       setDownloading(false)
     }

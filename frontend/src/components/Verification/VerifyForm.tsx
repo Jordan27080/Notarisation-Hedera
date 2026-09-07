@@ -2,6 +2,7 @@ import { useState, useCallback } from 'react'
 import { useDropzone } from 'react-dropzone'
 import { notarisationApi, type VerifyResult } from '../../api/notarisation'
 import { hashFile } from '../../utils/crypto'
+import { apiErrorMessage } from '../../api/errors'
 import Req from '../ui/Req'
 
 export default function VerifyForm() {
@@ -29,8 +30,8 @@ export default function VerifyForm() {
     try {
       const res = await notarisationApi.verify({ documentHash: hash })
       setResult(res)
-    } catch {
-      setError('Erreur lors de la vérification')
+    } catch (err) {
+      setError(await apiErrorMessage(err, 'Erreur lors de la vérification'))
     } finally {
       setLoading(false)
     }
