@@ -17,7 +17,12 @@ export default function PdfCanvas({ pdfBytes }: Props) {
   useEffect(() => {
     let cancelled = false
     ;(async () => {
-      const pdf  = await pdfjsLib.getDocument({ data: pdfBytes }).promise
+      // .slice() est indispensable : PDF.js *transfère* le buffer qu'on lui passe
+      // vers son worker, ce qui le détache définitivement côté page. Sans copie,
+      // le `pdfBytes` de l'appelant tombe à 0 octet — le téléchargement et la
+      // notarisation produiraient un PDF vide — et le second passage de l'effet
+      // (React StrictMode) échouerait en DataCloneError, laissant le canvas vide.
+      const pdf  = await pdfjsLib.getDocument({ data: pdfBytes.slice() }).promise
       const page = await pdf.getPage(1)
       if (cancelled || !canvasRef.current) return
 

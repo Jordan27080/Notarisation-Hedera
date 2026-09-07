@@ -174,8 +174,24 @@ export async function generateCertificate(data: CertificateData): Promise<Uint8A
   return pdfDoc.save()
 }
 
+/**
+ * Garde-fou anti-buffer détaché.
+ *
+ * PDF.js transfère (et donc détache) tout ArrayBuffer passé à
+ * `getDocument({ data })`. Un tableau détaché a une longueur de 0 : sans ce
+ * contrôle, on produirait silencieusement un PDF vide ou un base64 vide,
+ * alors que le hash notarisé, lui, porterait sur le vrai document.
+ */
+function assertUsable(bytes: Uint8Array, operation: string): void {
+  if (bytes.byteLength === 0)
+    throw new Error(
+      `${operation} : le contenu du PDF est vide (buffer détaché). Régénérez l'attestation.`,
+    )
+}
+
 /** Convertit un Uint8Array en chaîne base64 (chunks pour éviter le stack overflow) */
 export function uint8ToBase64(bytes: Uint8Array): string {
+  assertUsable(bytes, 'Encodage base64')
   const CHUNK = 8192
   let bin = ''
   for (let i = 0; i < bytes.length; i += CHUNK)
@@ -185,6 +201,7 @@ export function uint8ToBase64(bytes: Uint8Array): string {
 
 /** SHA-256 du PDF généré → notarisation Hedera */
 export async function hashPdfBytes(pdfBytes: Uint8Array): Promise<string> {
+  assertUsable(pdfBytes, 'Calcul du hash')
   const buf = await crypto.subtle.digest('SHA-256', pdfBytes.buffer as ArrayBuffer)
   return Array.from(new Uint8Array(buf))
     .map(b => b.toString(16).padStart(2, '0'))
@@ -193,6 +210,7 @@ export async function hashPdfBytes(pdfBytes: Uint8Array): Promise<string> {
 
 /** Télécharge le PDF dans le navigateur */
 export function downloadPdf(pdfBytes: Uint8Array, filename: string) {
+  assertUsable(pdfBytes, 'Téléchargement')
   const blob = new Blob([pdfBytes.buffer as ArrayBuffer], { type: 'application/pdf' })
   const url  = URL.createObjectURL(blob)
   const a    = document.createElement('a')
